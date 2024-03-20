@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>org.apache.activemq</groupId>
+    <artifactId>artemis-console-plugin</artifactId>
+    <packaging>war</packaging>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <parent>
+        <groupId>org.apache</groupId>
+        <artifactId>apache</artifactId>
+        <version>23</version>
+        <relativePath>org.apache:apache</relativePath>
+    </parent>
+
+    <name>ActiveMQ Artemis Console Plugin</name>
+    <url />
+
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.release>11</maven.compiler.release>
+        <hawtio.version>4.0.0-RC1</hawtio.version>
+        <jakarta.servlet-api.version>5.0.0</jakarta.servlet-api.version>
+        <logback-version>1.4.14</logback-version>
+        <slf4j.version>2.0.11</slf4j.version>
+        <jetty-version>11.0.18</jetty-version>
+        <node-version>v20.9.0</node-version>
+        <yarn-version>v1.22.21</yarn-version>
+        <frontend-maven-plugin-version>1.15.0</frontend-maven-plugin-version>
+        <!-- Path to the Hawtio TypeScript plugin -->
+        <plugin.path>artemis-plugin</plugin.path>
+    </properties>
+
+    <dependencies>
+        <!--
+          We only need to embed this dependency in the WAR. This contains
+          a nice helper class that our plugin can use to export its plugin
+          MBean.
+        -->
+        <dependency>
+            <groupId>io.hawt</groupId>
+            <artifactId>hawtio-plugin-mbean</artifactId>
+            <version>${hawtio.version}</version>
+        </dependency>
+
+        <!-- Servlet API is provided by the container -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>${jakarta.servlet-api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback-version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.rat</groupId>
+               <artifactId>apache-rat-plugin</artifactId> 
+               <executions>
+                     <execution>
+                        <phase>compile</phase>
+                        <goals>
+                           <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <excludes>
+                                <exclude>artemis-plugin/src/artemis-plugin/artemis/help.md</exclude>
+                                <exclude>artemis-plugin/package.json</exclude>
+                                <exclude>artemis-plugin/tsconfig.json</exclude>
+                                <exclude>artemis-plugin/yarn.lock</exclude>
+                                <exclude>README.md</exclude>
+                            </excludes>
+                        </configuration>
+                     </execution>
+                  </executions>
+            </plugin>
+            <!-- Build the plugin TypeScript subproject from Maven -->
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>${frontend-maven-plugin-version}</version>
+                <configuration>
+                    <workingDirectory>${plugin.path}</workingDirectory>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>install node and yarn</id>
+                        <goals>
+                            <goal>install-node-and-yarn</goal>
+                        </goals>
+                        <configuration>
+                            <nodeVersion>${node-version}</nodeVersion>
+                            <yarnVersion>${yarn-version}</yarnVersion>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>yarn install</id>
+                        <goals>
+                            <goal>yarn</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>install</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>yarn build</id>
+                        <goals>
+                            <goal>yarn</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>build</arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <configuration>
+                    <webResources>
+                        <!-- Add the plugin build to web resources -->
+                        <resource>
+                            <filtering>true</filtering>
+                            <directory>${plugin.path}/build</directory>
+                            <includes>
+                                <include>**/*.*</include>
+                            </includes>
+                            <excludes>
+                                <exclude>log4j.properties</exclude>
+                            </excludes>
+                        </resource>
+                    </webResources>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>io.hawt</groupId>
+                                    <artifactId>hawtio-war</artifactId>
+                                    <version>${hawtio.version}</version>
+                                    <type>war</type>
+                                    <outputDirectory>${project.build.directory}/deploy</outputDirectory>
+                                    <destFileName>hawtio.war</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <version>${jetty-version}</version>
+                <configuration>
+                    <deployMode>EMBED</deployMode>
+                    <scan>10</scan>
+                    <webApp>
+                        <contextPath>/${project.build.finalName}</contextPath>
+                        <resourceBases>
+                            <resourceBase>src/main/webapp</resourceBase>
+                            <resourceBases>${plugin.path}/build</resourceBases>
+                        </resourceBases>
+                    </webApp>
+                    <contextHandlers>
+                        <contextHandler implementation="org.eclipse.jetty.maven.plugin.MavenWebAppContext">
+                            <war>${project.build.directory}/deploy/hawtio.war</war>
+                            <contextPath>/console</contextPath>
+                        </contextHandler>
+                    </contextHandlers>
+                    <modules>
+                        <module>jmx</module>
+                    </modules>
+                    <systemProperties>
+                        <hawtio.authenticationEnabled>false</hawtio.authenticationEnabled>
+                        <hawtio.disableProxy>false</hawtio.disableProxy>
+                    </systemProperties>
+                </configuration>
+            </plugin>
+
+            <!-- Clean up the plugin's 'build/' and 'node_modules/' directories as well -->
+            <plugin>
+                <artifactId>maven-clean-plugin</artifactId>
+                <configuration>
+                    <filesets>
+                        <fileset>
+                            <directory>${basedir}/${plugin.path}/build</directory>
+                            <includes>
+                                <include>**/*</include>
+                            </includes>
+                            <followSymlinks>false</followSymlinks>
+                        </fileset>
+                        <fileset>
+                            <directory>${basedir}/${plugin.path}/node_modules</directory>
+                            <includes>
+                                <include>**/*</include>
+                            </includes>
+                            <followSymlinks>false</followSymlinks>
+                        </fileset>
+                    </filesets>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+
+</project>
